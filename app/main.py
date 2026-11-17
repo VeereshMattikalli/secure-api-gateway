@@ -8,13 +8,14 @@ from fastapi import (
     Header
 )
 
-from fastapi.responses import Response
+from fastapi.responses import Response, JSONResponse
 from sqlalchemy.orm import Session
 
 from app.config import settings
 from app.database.db import Base, engine, get_db
 from app.database.models import Client
 from app.core.authentication import get_current_client
+from app.core.rate_limiter import check_rate_limit
 from app.core.request_signing import verify_request_signature
 from app.core.authorization import require_permission
 
@@ -113,8 +114,18 @@ async def products(
         x_nonce,
         db
     )
+    rate_limit_info = check_rate_limit(
+        str(current_client.client_id),
+        current_client.role
+    )
 
-    return await forward_to_backend("/products")
+    response = await forward_to_backend("/products")
+
+    response.headers["X-RateLimit-Limit"] = str(rate_limit_info["limit"])
+    response.headers["X-RateLimit-Remaining"] = str(rate_limit_info["remaining"])
+    response.headers["X-RateLimit-Reset"] = str(rate_limit_info["reset_after"])
+
+    return response
 # --------------------------------------------------
 
 #Protected Profile API
@@ -139,8 +150,18 @@ async def profile(
         x_nonce,
         db
     )
+    rate_limit_info = check_rate_limit(
+        str(current_client.client_id),
+        current_client.role
+    )
 
-    return await forward_to_backend("/profile")
+    response = await forward_to_backend("/profile")
+
+    response.headers["X-RateLimit-Limit"] = str(rate_limit_info["limit"])
+    response.headers["X-RateLimit-Remaining"] = str(rate_limit_info["remaining"])
+    response.headers["X-RateLimit-Reset"] = str(rate_limit_info["reset_after"])
+
+    return response
 
 
 # --------------------------------------------------
@@ -167,16 +188,27 @@ async def analytics(
         db
     )
 
-    return {
-        "message": "Analytics data accessed successfully",
-        "role": current_client.role,
-        "data": {
-            "total_requests": 1250,
-            "successful_requests": 1190,
-            "failed_requests": 60
-        }
-    }
+    rate_limit_info = check_rate_limit(
+        str(current_client.client_id),
+        current_client.role
+    )
 
+    return JSONResponse(
+        content={
+            "message": "Analytics data accessed successfully",
+            "role": current_client.role,
+            "data": {
+                "total_requests": 1250,
+                "successful_requests": 1190,
+                "failed_requests": 60
+            }
+        },
+        headers={
+            "X-RateLimit-Limit": str(rate_limit_info["limit"]),
+            "X-RateLimit-Remaining": str(rate_limit_info["remaining"]),
+            "X-RateLimit-Reset": str(rate_limit_info["reset_after"])
+        }
+    )
 
 # --------------------------------------------------
 # Admin API - ADMIN only
@@ -202,11 +234,23 @@ async def admin(
         db
     )
 
-    return {
-        "message": "Administrator access granted",
-        "role": current_client.role,
-        "admin_panel": "Accessible"
-    }
+    rate_limit_info = check_rate_limit(
+        str(current_client.client_id),
+        current_client.role
+    )
+
+    return JSONResponse(
+        content={
+            "message": "Administrator access granted",
+            "role": current_client.role,
+            "admin_panel": "Accessible"
+        },
+        headers={
+            "X-RateLimit-Limit": str(rate_limit_info["limit"]),
+            "X-RateLimit-Remaining": str(rate_limit_info["remaining"]),
+            "X-RateLimit-Reset": str(rate_limit_info["reset_after"])
+        }
+    )
 
 
 # --------------------------------------------------
