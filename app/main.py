@@ -10,15 +10,18 @@ from fastapi import (
 
 from fastapi.responses import Response, JSONResponse
 from sqlalchemy.orm import Session
-
+from app.core.dashboard_auth import router as dashboard_auth_router
 from app.config import settings
 from app.database.db import Base, engine, get_db
+from app.core.dashboard_data import router as dashboard_data_router
 from app.database.models import Client
 from app.core.authentication import get_current_client
 from app.core.rate_limiter import check_rate_limit
 from app.core.request_signing import verify_request_signature
 from app.core.authorization import require_permission
 from app.core.audit_logger import log_audit_event
+from fastapi.middleware.cors import CORSMiddleware
+from starlette.middleware.sessions import SessionMiddleware
 import time
 
 # Initialize database tables
@@ -31,7 +34,29 @@ app = FastAPI(
     version=settings.APP_VERSION,
     description="Secure API Gateway with API Key Authentication"
 )
+# --------------------------------------------------
+# Dashboard Session and CORS Middleware
+# --------------------------------------------------
 
+app.add_middleware(
+    SessionMiddleware,
+    secret_key=settings.DASHBOARD_SESSION_SECRET,
+    session_cookie="securegate_dashboard_session",
+    max_age=1800,
+    same_site="lax",
+    https_only=False
+)
+
+app.add_middleware(
+    CORSMiddleware,
+    allow_origins=["http://localhost:5173"],
+    allow_credentials=True,
+    allow_methods=["GET", "POST"],
+    allow_headers=["Content-Type"]
+)
+# Register dashboard authentication routes
+app.include_router(dashboard_auth_router)
+app.include_router(dashboard_data_router)
 # --------------------------------------------------
 # Audit Logging Middleware
 # --------------------------------------------------

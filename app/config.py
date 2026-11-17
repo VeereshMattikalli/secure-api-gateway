@@ -8,6 +8,7 @@ class Settings(BaseSettings):
     DATABASE_URL: str = "sqlite:///./secure_gateway.db"
     BACKEND_URL: str = "http://127.0.0.1:8001"
     HMAC_SECRET: str
+    DASHBOARD_SESSION_SECRET: str
 
     model_config = SettingsConfigDict(
         env_file=".env",
