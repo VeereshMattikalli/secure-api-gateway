@@ -14,7 +14,17 @@ router = APIRouter(
     prefix="/dashboard/auth",
     tags=["Dashboard Authentication"]
 )
+ALLOWED_DASHBOARD_ORIGIN = "http://localhost:5173"
 
+
+def require_dashboard_origin(request: Request):
+    origin = request.headers.get("origin")
+
+    if origin != ALLOWED_DASHBOARD_ORIGIN:
+        raise HTTPException(
+            status_code=403,
+            detail="Invalid or missing request origin"
+        )
 
 class DashboardLoginRequest(BaseModel):
     api_key: SecretStr
@@ -60,7 +70,8 @@ def get_dashboard_admin(
 def dashboard_login(
     login_data: DashboardLoginRequest,
     request: Request,
-    db: Session = Depends(get_db)
+    db: Session = Depends(get_db),
+    _: None = Depends(require_dashboard_origin)
 ):
     api_key = login_data.api_key.get_secret_value()
 
@@ -139,7 +150,10 @@ def dashboard_login(
 
 
 @router.post("/logout")
-def dashboard_logout(request: Request):
+def dashboard_logout(
+    request: Request,
+    _: None = Depends(require_dashboard_origin)
+):
     request.session.clear()
 
     return {
