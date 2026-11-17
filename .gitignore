@@ -9,3 +9,6 @@ __pycache__/
 htmlcov/
 .vscode/
 api.txt
+# Generated audit logs
+logs/*.log
+logs/*.log.*

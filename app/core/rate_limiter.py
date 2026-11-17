@@ -3,7 +3,9 @@ import time
 from collections import defaultdict, deque
 from threading import Lock
 
-from fastapi import HTTPException, status
+from fastapi import HTTPException, status, Request
+
+from app.core.audit_logger import log_audit_event
 
 
 # Rate limits based on client roles
@@ -23,7 +25,11 @@ request_history = defaultdict(deque)
 rate_limit_lock = Lock()
 
 
-def check_rate_limit(client_id: str, role: str):
+def check_rate_limit(
+    client_id: str,
+    role: str,
+    request: Request
+):
     """
     Check whether a client has exceeded the allowed
     number of requests within the sliding time window.
@@ -49,6 +55,21 @@ def check_rate_limit(client_id: str, role: str):
             retry_after = max(
                 1,
                 int(WINDOW_SECONDS - (current_time - requests[0]) + 0.999)
+            )
+
+            # Record rate-limit violation
+            log_audit_event(
+                event_type="RATE_LIMIT_EXCEEDED",
+                description=f"Client exceeded {limit} requests per {WINDOW_SECONDS} seconds",
+                client_id=client_id,
+                role=role,
+                endpoint=request.url.path,
+                method=request.method,
+                status_code=429,
+                ip_address=(
+                    request.client.host
+                    if request.client else None
+                )
             )
 
             raise HTTPException(

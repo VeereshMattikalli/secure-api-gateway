@@ -2,14 +2,16 @@
 import hashlib
 import hmac
 
-from fastapi import HTTPException, Header, Depends
+from fastapi import HTTPException, Header, Depends, Request
 from sqlalchemy.orm import Session
 
 from app.database.db import get_db
 from app.database.models import Client
+from app.core.audit_logger import log_audit_event
 
 
 def get_current_client(
+    request: Request,
     x_api_key: str | None = Header(
         default=None,
         alias="X-API-Key"
@@ -17,8 +19,21 @@ def get_current_client(
     db: Session = Depends(get_db)
 ):
 
+    client_ip = (
+        request.client.host if request.client else None
+    )
+
     # Check whether API key is provided
     if not x_api_key:
+        log_audit_event(
+            event_type="AUTH_FAILURE",
+            description="API key is missing",
+            endpoint=request.url.path,
+            method=request.method,
+            status_code=401,
+            ip_address=client_ip
+        )
+
         raise HTTPException(
             status_code=401,
             detail="API key is missing"
@@ -36,6 +51,15 @@ def get_current_client(
 
     # Reject invalid API keys
     if client is None:
+        log_audit_event(
+            event_type="AUTH_FAILURE",
+            description="Invalid API key",
+            endpoint=request.url.path,
+            method=request.method,
+            status_code=401,
+            ip_address=client_ip
+        )
+
         raise HTTPException(
             status_code=401,
             detail="Invalid API key"
@@ -46,6 +70,17 @@ def get_current_client(
         client.key_hash,
         received_hash
     ):
+        log_audit_event(
+            event_type="AUTH_FAILURE",
+            description="API key verification failed",
+            client_id=str(client.client_id),
+            role=client.role,
+            endpoint=request.url.path,
+            method=request.method,
+            status_code=401,
+            ip_address=client_ip
+        )
+
         raise HTTPException(
             status_code=401,
             detail="Invalid API key"
@@ -53,9 +88,35 @@ def get_current_client(
 
     # Reject disabled clients
     if not client.is_active:
+        log_audit_event(
+            event_type="AUTH_FAILURE",
+            description="Disabled client attempted authentication",
+            client_id=str(client.client_id),
+            role=client.role,
+            endpoint=request.url.path,
+            method=request.method,
+            status_code=403,
+            ip_address=client_ip
+        )
+
         raise HTTPException(
             status_code=403,
             detail="Client account is disabled"
         )
 
+    # Record successful authentication
+    log_audit_event(
+        event_type="AUTH_SUCCESS",
+        description="Client authenticated successfully",
+        client_id=str(client.client_id),
+        role=client.role,
+        endpoint=request.url.path,
+        method=request.method,
+        status_code=200,
+        ip_address=client_ip
+    )
+
+    # Store authenticated client details for audit middleware
+    request.state.client_id = str(client.client_id)
+    request.state.role = client.role
     return client

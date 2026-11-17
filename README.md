@@ -75,6 +75,41 @@ Features include:
 - X-RateLimit-Reset response header.
 - Thread locking for shared in-process request tracking.
 
+### 7. Audit Logging and Monitoring
+
+The API Gateway implements structured security audit logging to monitor API activity and record important security-related events.
+
+**Features:**
+- Records successful and failed API key authentication attempts.
+- Logs authorization failures when a client attempts to access an endpoint without the required role permission.
+- Records rate-limit violations when clients exceed their request limits.
+- Tracks API request details, including endpoint, HTTP method, response status code, client ID, role, IP address, and request processing time.
+- Records unexpected request-processing errors.
+- Uses UTC timestamps and JSON-formatted log entries for easier analysis.
+- Implements log rotation with a maximum file size of 5 MB and retains up to five backup files.
+- Excludes API keys, HMAC secrets, signatures, and request bodies from audit logs.
+
+**Audit Log Location:**
+
+```text
+logs/audit.log
+```
+
+The application automatically creates the logs directory when the audit logger is initialized. Generated log files are excluded from Git version control.
+
+**Recorded Event Types:**
+
+| Event | Description |
+|---|---|
+| `AUTH_SUCCESS` | Successful API key authentication |
+| `AUTH_FAILURE` | Failed API key authentication |
+| `AUTHORIZATION_DENIED` | Access denied due to insufficient permissions |
+| `RATE_LIMIT_EXCEEDED` | Client exceeded the permitted request limit |
+| `API_REQUEST` | General API request and response details |
+| `REQUEST_ERROR` | Unexpected request-processing error |
+
+This logging mechanism provides traceability of API activity and supports security monitoring and troubleshooting.
+
 ## Project Structure
 
 ```text

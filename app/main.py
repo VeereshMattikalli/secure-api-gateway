@@ -18,6 +18,8 @@ from app.core.authentication import get_current_client
 from app.core.rate_limiter import check_rate_limit
 from app.core.request_signing import verify_request_signature
 from app.core.authorization import require_permission
+from app.core.audit_logger import log_audit_event
+import time
 
 # Initialize database tables
 Base.metadata.create_all(bind=engine)
@@ -29,6 +31,46 @@ app = FastAPI(
     version=settings.APP_VERSION,
     description="Secure API Gateway with API Key Authentication"
 )
+
+# --------------------------------------------------
+# Audit Logging Middleware
+# --------------------------------------------------
+
+@app.middleware("http")
+async def audit_logging_middleware(request: Request, call_next):
+
+    start_time = time.time()
+    response = None
+
+    try:
+        response = await call_next(request)
+        return response
+
+    except Exception:
+        log_audit_event(
+            event_type="REQUEST_ERROR",
+            description="Unexpected error while processing request",
+            endpoint=request.url.path,
+            method=request.method,
+            status_code=500,
+            ip_address=request.client.host if request.client else None
+        )
+        raise
+
+    finally:
+        if response is not None:
+            processing_time = round(time.time() - start_time, 4)
+
+            log_audit_event(
+                event_type="API_REQUEST",
+                description=f"Request processed in {processing_time} seconds",
+                client_id=getattr(request.state, "client_id", None),
+                role=getattr(request.state, "role", None),
+                endpoint=request.url.path,
+                method=request.method,
+                status_code=response.status_code,
+                ip_address=request.client.host if request.client else None
+            )
 
 
 # --------------------------------------------------
@@ -115,9 +157,10 @@ async def products(
         db
     )
     rate_limit_info = check_rate_limit(
-        str(current_client.client_id),
-        current_client.role
-    )
+    str(current_client.client_id),
+    current_client.role,
+    request
+)
 
     response = await forward_to_backend("/products")
 
@@ -151,9 +194,10 @@ async def profile(
         db
     )
     rate_limit_info = check_rate_limit(
-        str(current_client.client_id),
-        current_client.role
-    )
+    str(current_client.client_id),
+    current_client.role,
+    request
+)
 
     response = await forward_to_backend("/profile")
 
@@ -189,9 +233,10 @@ async def analytics(
     )
 
     rate_limit_info = check_rate_limit(
-        str(current_client.client_id),
-        current_client.role
-    )
+    str(current_client.client_id),
+    current_client.role,
+    request
+)
 
     return JSONResponse(
         content={
@@ -235,9 +280,10 @@ async def admin(
     )
 
     rate_limit_info = check_rate_limit(
-        str(current_client.client_id),
-        current_client.role
-    )
+    str(current_client.client_id),
+    current_client.role,
+    request
+)
 
     return JSONResponse(
         content={
