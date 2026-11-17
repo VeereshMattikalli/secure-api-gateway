@@ -164,15 +164,43 @@ Audit logging features:
 
 ## System Architecture
 
-The system consists of three primary components:
+The application uses a layered architecture consisting of a React dashboard, FastAPI gateway, backend service, SQLite database and audit logging.
 
-1. React frontend for dashboard interaction.
-2. FastAPI API Gateway for security enforcement.
-3. FastAPI backend for application data and services.
+See the [detailed architecture documentation](docs/architecture.md).
 
-The API Gateway communicates with the backend only after validating protected requests.
+### Architecture Diagram
 
----
+```mermaid
+flowchart TB
+    C["API Clients"]
+    F["React Dashboard :5173"]
+    subgraph G["FastAPI Gateway :8000"]
+        A["API Key Authentication"]
+        H["HMAC Verification"]
+        T["Timestamp and Nonce"]
+        R["RBAC"]
+        L["Rate Limiter"]
+        P["Reverse Proxy"]
+        D["Dashboard Session Authentication"]
+        DD["Dashboard Data API"]
+    end
+    DB[("SQLite Database")]
+    LOG["JSON Audit Logs"]
+    B["FastAPI Backend :8001"]
+
+    C --> A --> H --> T --> R --> L --> P --> B
+    B --> P --> C
+    A -.-> DB
+    T -.-> DB
+    A -.-> LOG
+    H -.-> LOG
+    R -.-> LOG
+    L -.-> LOG
+    F <--> D
+    D --> DD
+    DD --> DB
+    DD --> LOG
+```
 
 ## Technology Stack
 
@@ -804,6 +832,19 @@ Potential improvements include:
 ## Repository
 
 **GitHub:** https://github.com/VeereshMattikalli/secure-api-gateway
+
+## Detailed Documentation
+
+- [System Architecture](docs/architecture.md)
+- [Module Documentation](docs/modules.md)
+- [API Reference](docs/api-reference.md)
+- [Security Documentation](docs/security.md)
+- [Testing Methodology and Results](docs/testing.md)
+- [Ubuntu Deployment Guide](docs/deployment-ubuntu.md)
+- [Limitations and Future Enhancements](docs/limitations-and-future-enhancements.md)
+- [Screenshots Checklist](docs/screenshots-checklist.md)
+
+---
 
 ## Conclusion
 
